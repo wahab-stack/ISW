@@ -4,6 +4,7 @@ const express = require("express");
 const connectDB = require("./config/db");
 const loggerMiddleware = require("./middleware/loggerMiddleware");
 const customerRoutes = require("./routes/customerRoutes");
+const productRoutes = require("./routes/productRoutes");
 
 connectDB();
 
@@ -13,6 +14,7 @@ app.use(loggerMiddleware);
 app.use(express.json());
 
 app.use("/api/customers", customerRoutes);
+app.use("/api/products", productRoutes);
 
 // First Route
 app.get("/", (req, res) => {
