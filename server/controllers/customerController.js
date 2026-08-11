@@ -91,10 +91,17 @@ const addCustomer = async (req, res) => {
     });
   }
 };
-// DELETE Customer
+// DEACTIVATE Customer
 const deleteCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndDelete(req.params.id);
+    const customer = await Customer.findByIdAndUpdate(
+      req.params.id,
+      { status: "Inactive" },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!customer) {
       return res.status(404).json({
@@ -105,9 +112,9 @@ const deleteCustomer = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Customer Deleted Successfully",
+      message: "Customer Deactivated Successfully",
+      customer,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
