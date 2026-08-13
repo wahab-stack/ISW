@@ -8,6 +8,9 @@ const productRoutes = require("./routes/productRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
 const rollReceivingRoutes = require("./routes/rollReceivingRoutes");
+const supplierLedgerRoutes = require("./routes/supplierLedgerRoutes");
+const customerLedgerRoutes = require("./routes/customerLedgerRoutes");
+const saleRoutes = require("./routes/saleRoutes");
 
 
 connectDB();
@@ -21,7 +24,10 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
-app.use("/api/roll-receivings", rollReceivingRoutes);
+app.use("/api/roll-receiving", rollReceivingRoutes);
+app.use("/api/supplier-ledger", supplierLedgerRoutes);
+app.use("/api/customer-ledger", customerLedgerRoutes);
+app.use("/api/sales", saleRoutes);
 // First Route
 app.get("/", (req, res) => {
   res.send("Welcome to Smart Indus Steel Works Backend");

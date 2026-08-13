@@ -2,12 +2,15 @@ const mongoose = require("mongoose");
 
 const saleSchema = new mongoose.Schema(
   {
+    // Unique sale receipt number
     receiptNo: {
       type: String,
       required: true,
       unique: true,
+      trim: true,
     },
 
+    // Sale date
     date: {
       type: Date,
       default: Date.now,
@@ -27,7 +30,8 @@ const saleSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Gage/thickness - used for Jastee and Steel
+    // Gauge / thickness
+    // Used for Jastee and Steel
     gageNumber: {
       type: Number,
       enum: [16, 18, 20, 22, 23],
@@ -37,38 +41,48 @@ const saleSchema = new mongoose.Schema(
     sheetQuantity: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
-    // Weight in kg - used for Jastee and Steel
+    // Weight in kg
+    // Used for Jastee and Steel
     weight: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
-    // Money amounts
+    // Additional charges
     loading: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
     mazdory: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
     loaderRent: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
+    // Amount paid at the time of sale
     advancePayment: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
+    // Complete value of the sale
     totalPayment: {
       type: Number,
       required: true,
+      min: 0,
     },
   },
   {
