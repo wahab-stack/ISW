@@ -1,5 +1,7 @@
 const RollReceiving = require("../models/RollReceiving");
 const SupplierLedger = require("../models/SupplierLedger");
+const Product = require("../models/Product");
+const Inventory = require("../models/Inventory");
 
 // ADD New Roll Receiving
 const addRollReceiving = async (req, res) => {
@@ -17,7 +19,9 @@ const addRollReceiving = async (req, res) => {
       freightCharges,
     } = req.body;
 
-    // Check if this receipt already exists in Roll Receiving
+    // --------------------------------------------------
+    // 1. Check duplicate receipt number
+    // --------------------------------------------------
     const existingRoll = await RollReceiving.findOne({
       receiptNo,
     });
@@ -31,28 +35,92 @@ const addRollReceiving = async (req, res) => {
       });
     }
 
-    // Calculate total cost automatically
+    // --------------------------------------------------
+    // 2. Validate weight
+    // --------------------------------------------------
+    const rollWeight = Number(weight || 0);
+
+    if (rollWeight <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Roll weight must be greater than 0.",
+      });
+    }
+
+    // --------------------------------------------------
+    // 3. Calculate total cost
+    // --------------------------------------------------
     const totalCostPerRoll =
       Number(rollPrice || 0) +
       Number(karachiPeshawar || 0) +
       Number(freightCharges || 0);
 
-    // Create Roll Receiving record
-    const rollReceiving = await RollReceiving.create({
-      receiptNo,
-      date,
-      supplier,
-      gauge,
-      type,
-      weight,
-      processing,
-      rollPrice,
-      karachiPeshawar,
-      freightCharges,
-      totalCostPerRoll,
+    // --------------------------------------------------
+    // 4. Determine inventory category
+    //
+    // ISW mapping:
+    //
+    // PR      -> iron
+    // Jastee  -> iron
+    // Steel   -> steel
+    //
+    // If your Roll Receiving "type" contains another
+    // value, it will be rejected.
+    // --------------------------------------------------
+    let inventoryCategory;
+
+    if (type === "PR" || type === "Jastee") {
+      inventoryCategory = "iron";
+    } else if (type === "Steel") {
+      inventoryCategory = "steel";
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid roll type for inventory.",
+        type,
+        allowedTypes: ["PR", "Jastee", "Steel"],
+      });
+    }
+
+    // --------------------------------------------------
+    // 5. Find matching product
+    // --------------------------------------------------
+    const product = await Product.findOne({
+      category: inventoryCategory,
+      gauge: Number(gauge),
+      status: "Active",
     });
 
-    // Check if a PURCHASE ledger entry already exists
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Matching product was not found.",
+        category: inventoryCategory,
+        gauge: Number(gauge),
+      });
+    }
+
+    // --------------------------------------------------
+    // 6. Find inventory for this product
+    // --------------------------------------------------
+    const inventory = await Inventory.findOne({
+      product: product._id,
+    });
+
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Inventory record was not found for this product.",
+        product: product.productName,
+        category: product.category,
+        gauge: product.gauge,
+      });
+    }
+
+    // --------------------------------------------------
+    // 7. Check duplicate supplier ledger entry
+    // --------------------------------------------------
     const existingLedgerEntry = await SupplierLedger.findOne({
       transactionType: "PURCHASE",
       reference: receiptNo,
@@ -67,7 +135,53 @@ const addRollReceiving = async (req, res) => {
       });
     }
 
-    // Automatically create Supplier Ledger PURCHASE entry
+    // --------------------------------------------------
+    // 8. Calculate new inventory quantity
+    // --------------------------------------------------
+    const newQuantity =
+      Number(inventory.quantity) + rollWeight;
+
+    // --------------------------------------------------
+    // 9. Calculate inventory status
+    // --------------------------------------------------
+    let inventoryStatus = "Available";
+
+    if (newQuantity <= 0) {
+      inventoryStatus = "Out of Stock";
+    } else if (
+      newQuantity <= Number(inventory.minimumStock || 0)
+    ) {
+      inventoryStatus = "Low Stock";
+    }
+
+    // --------------------------------------------------
+    // 10. Create Roll Receiving record
+    // --------------------------------------------------
+    const rollReceiving = await RollReceiving.create({
+      receiptNo,
+      date,
+      supplier,
+      gauge,
+      type,
+      weight,
+      processing,
+      rollPrice,
+      karachiPeshawar,
+      freightCharges,
+      totalCostPerRoll,
+    });
+
+    // --------------------------------------------------
+    // 11. Update Inventory
+    // --------------------------------------------------
+    inventory.quantity = newQuantity;
+    inventory.status = inventoryStatus;
+
+    await inventory.save();
+
+    // --------------------------------------------------
+    // 12. Create Supplier Ledger PURCHASE entry
+    // --------------------------------------------------
     const ledgerEntry = await SupplierLedger.create({
       supplier,
       transactionType: "PURCHASE",
@@ -77,10 +191,27 @@ const addRollReceiving = async (req, res) => {
       date: date || new Date(),
     });
 
+    // --------------------------------------------------
+    // 13. Send response
+    // --------------------------------------------------
     res.status(201).json({
       success: true,
       message: "Roll Receiving Added Successfully",
+
       rollReceiving,
+
+      inventory: {
+        product: product.productName,
+        category: product.category,
+        gauge: product.gauge,
+        quantityReceived: rollWeight,
+        previousQuantity:
+          Number(inventory.quantity) - rollWeight,
+        newQuantity,
+        unit: inventory.unit,
+        status: inventoryStatus,
+      },
+
       ledgerEntry,
     });
   } catch (error) {
@@ -114,8 +245,9 @@ const getRollReceivings = async (req, res) => {
 // GET Single Roll Receiving
 const getRollReceivingById = async (req, res) => {
   try {
-    const rollReceiving = await RollReceiving.findById(req.params.id)
-      .populate("supplier");
+    const rollReceiving = await RollReceiving.findById(
+      req.params.id
+    ).populate("supplier");
 
     if (!rollReceiving) {
       return res.status(404).json({
