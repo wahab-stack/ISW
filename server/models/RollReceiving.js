@@ -33,12 +33,14 @@ const rollReceivingSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Total weight of the received roll in kg
     weight: {
       type: Number,
       required: true,
       min: 0,
     },
 
+    // Processing breakdown
     processing: {
       g14PR: {
         type: Number,
@@ -95,25 +97,36 @@ const rollReceivingSchema = new mongoose.Schema(
       },
     },
 
+    // Original price of the roll
     rollPrice: {
       type: Number,
       required: true,
       min: 0,
     },
 
+    // Transportation from Karachi to Peshawar
     karachiPeshawar: {
       type: Number,
       default: 0,
       min: 0,
     },
 
+    // Other freight charges
     freightCharges: {
       type: Number,
       default: 0,
       min: 0,
     },
 
+    // Roll price + transportation + freight
     totalCostPerRoll: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    // Total cost of the roll divided by total weight
+    costPerKg: {
       type: Number,
       required: true,
       min: 0,
