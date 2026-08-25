@@ -27,7 +27,7 @@ const rollReceivingSchema = new mongoose.Schema(
       required: true,
     },
 
-    type: {
+    description: {
       type: String,
       required: true,
       trim: true,

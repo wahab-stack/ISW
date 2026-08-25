@@ -13,10 +13,10 @@ const addRollReceiving = async (req, res) => {
       receiptNo,
       date,
       supplier,
+      category,
       gauge,
-      type,
+      description,
       weight,
-      processing,
       rollPrice,
       karachiPeshawar,
       freightCharges,
@@ -40,7 +40,28 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 2. Validate weight
+    // 2. Validate category
+    // --------------------------------------------------
+
+    if (!category) {
+      return res.status(400).json({
+        success: false,
+        message: "Category is required.",
+      });
+    }
+
+    const normalizedCategory = category.toLowerCase().trim();
+
+    if (!["iron", "steel"].includes(normalizedCategory)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid category. Use iron or steel.",
+        category,
+      });
+    }
+
+    // --------------------------------------------------
+    // 3. Validate weight
     // --------------------------------------------------
 
     const rollWeight = Number(weight || 0);
@@ -53,7 +74,7 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 3. Calculate total roll cost
+    // 4. Calculate total roll cost
     //
     // Roll Price
     // + Karachi → Peshawar
@@ -67,7 +88,7 @@ const addRollReceiving = async (req, res) => {
       Number(freightCharges || 0);
 
     // --------------------------------------------------
-    // 4. Calculate cost per kg
+    // 5. Calculate cost per kg
     //
     // Total Roll Cost / Roll Weight
     // --------------------------------------------------
@@ -77,34 +98,22 @@ const addRollReceiving = async (req, res) => {
     );
 
     // --------------------------------------------------
-    // 5. Determine inventory category
-    //
-    // PR      -> iron
-    // Jastee  -> iron
-    // Steel   -> steel
+    // 6. Validate gauge
     // --------------------------------------------------
 
-    let inventoryCategory;
-
-    if (type === "PR" || type === "Jastee") {
-      inventoryCategory = "iron";
-    } else if (type === "Steel") {
-      inventoryCategory = "steel";
-    } else {
+    if (!gauge) {
       return res.status(400).json({
         success: false,
-        message: "Invalid roll type for inventory.",
-        type,
-        allowedTypes: ["PR", "Jastee", "Steel"],
+        message: "Gauge is required.",
       });
     }
 
     // --------------------------------------------------
-    // 6. Find matching product
+    // 7. Find matching product
     // --------------------------------------------------
 
     const product = await Product.findOne({
-      category: inventoryCategory,
+      category: normalizedCategory,
       gauge: Number(gauge),
       status: "Active",
     });
@@ -113,13 +122,13 @@ const addRollReceiving = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Matching product was not found.",
-        category: inventoryCategory,
+        category: normalizedCategory,
         gauge: Number(gauge),
       });
     }
 
     // --------------------------------------------------
-    // 7. Find inventory for the product
+    // 8. Find inventory for the product
     // --------------------------------------------------
 
     const inventory = await Inventory.findOne({
@@ -138,7 +147,7 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 8. Check duplicate supplier ledger entry
+    // 9. Check duplicate supplier ledger entry
     // --------------------------------------------------
 
     const existingLedgerEntry =
@@ -157,7 +166,7 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 9. Get previous inventory values
+    // 10. Get previous inventory values
     // --------------------------------------------------
 
     const previousQuantity = Number(
@@ -173,14 +182,14 @@ const addRollReceiving = async (req, res) => {
     );
 
     // --------------------------------------------------
-    // 10. Calculate new inventory quantity
+    // 11. Calculate new inventory quantity
     // --------------------------------------------------
 
     const newQuantity =
       previousQuantity + rollWeight;
 
     // --------------------------------------------------
-    // 11. Calculate new stock value
+    // 12. Calculate new stock value
     //
     // Previous Stock Value
     // + New Roll Cost
@@ -191,7 +200,7 @@ const addRollReceiving = async (req, res) => {
       previousStockValue + totalCostPerRoll;
 
     // --------------------------------------------------
-    // 12. Calculate weighted average cost per kg
+    // 13. Calculate weighted average cost per kg
     //
     // New Stock Value / New Quantity
     // --------------------------------------------------
@@ -204,7 +213,7 @@ const addRollReceiving = async (req, res) => {
         : 0;
 
     // --------------------------------------------------
-    // 13. Calculate inventory status
+    // 14. Calculate inventory status
     // --------------------------------------------------
 
     let inventoryStatus = "Available";
@@ -219,7 +228,7 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 14. Create Roll Receiving record
+    // 15. Create Roll Receiving record
     // --------------------------------------------------
 
     const rollReceiving =
@@ -227,10 +236,10 @@ const addRollReceiving = async (req, res) => {
         receiptNo,
         date,
         supplier,
+        category: normalizedCategory,
         gauge,
-        type,
+        description,
         weight,
-        processing,
         rollPrice,
         karachiPeshawar,
         freightCharges,
@@ -239,7 +248,7 @@ const addRollReceiving = async (req, res) => {
       });
 
     // --------------------------------------------------
-    // 15. Update inventory
+    // 16. Update inventory
     // --------------------------------------------------
 
     inventory.quantity = newQuantity;
@@ -254,15 +263,6 @@ const addRollReceiving = async (req, res) => {
     await inventory.save();
 
     // --------------------------------------------------
-    // 16. Determine material name
-    // --------------------------------------------------
-
-    const materialName =
-      inventoryCategory === "iron"
-        ? "iron"
-        : "steel";
-
-    // --------------------------------------------------
     // 17. Create Supplier Ledger PURCHASE entry
     // --------------------------------------------------
 
@@ -273,7 +273,7 @@ const addRollReceiving = async (req, res) => {
         amount: totalCostPerRoll,
         reference: receiptNo,
         description:
-          `Purchase of ${gauge} gauge ${type} ${materialName} roll`,
+          `Purchase of ${gauge} gauge ${normalizedCategory} roll`,
         date: date || new Date(),
       });
 
