@@ -2,7 +2,9 @@ const mongoose = require("mongoose");
 
 const saleSchema = new mongoose.Schema(
   {
+    // ==================================================
     // Unique sale receipt number
+    // ==================================================
     receiptNo: {
       type: String,
       required: true,
@@ -10,49 +12,56 @@ const saleSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // ==================================================
     // Sale date
+    // ==================================================
     date: {
       type: Date,
       default: Date.now,
     },
 
+    // ==================================================
     // Customer who made the purchase
+    // ==================================================
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
       required: true,
     },
 
-    // What is being sold?
+    // ==================================================
+    // Type of material being sold
+    // ==================================================
     saleCategory: {
       type: String,
       enum: ["Profile Chaddar", "Jastee", "Steel"],
       required: true,
     },
 
+    // ==================================================
     // Gauge / thickness
-    // Used for Jastee and Steel
+    // ==================================================
+    // Used to identify the correct inventory product
     gageNumber: {
       type: Number,
-      enum: [16, 18, 20, 22, 23],
+      enum: [14, 16, 18, 20, 22, 23],
+      required: true,
     },
 
-    // Number of Profile Chaddar sheets
-    sheetQuantity: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-
-    // Weight in kg
-    // Used for Jastee and Steel
+    // ==================================================
+    // Weight sold in KG
+    // ==================================================
+    // ISW now works completely by weight.
+    // No sheetQuantity is required.
     weight: {
       type: Number,
-      default: 0,
-      min: 0,
+      required: true,
+      min: 0.01,
     },
 
-    // Additional charges
+    // ==================================================
+    // Additional sale charges
+    // ==================================================
     loading: {
       type: Number,
       default: 0,
@@ -71,18 +80,22 @@ const saleSchema = new mongoose.Schema(
       min: 0,
     },
 
+    // ==================================================
     // Amount paid at the time of sale
+    // ==================================================
     advancePayment: {
       type: Number,
       default: 0,
       min: 0,
     },
 
+    // ==================================================
     // Complete value of the sale
+    // ==================================================
     totalPayment: {
       type: Number,
       required: true,
-      min: 0,
+      min: 0.01,
     },
   },
   {

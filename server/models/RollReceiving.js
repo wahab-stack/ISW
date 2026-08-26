@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const rollReceivingSchema = new mongoose.Schema(
   {
+    // Receipt number
     receiptNo: {
       type: String,
       required: true,
@@ -9,102 +10,60 @@ const rollReceivingSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Date of receiving
     date: {
       type: Date,
       required: true,
       default: Date.now,
     },
 
+    // Supplier
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Supplier",
       required: true,
     },
 
+    // Material category
+    // iron = Jastee / iron material
+    // steel = steel material
+    category: {
+      type: String,
+      required: true,
+      enum: ["iron", "steel"],
+      lowercase: true,
+      trim: true,
+    },
+
+    // Gauge
     gauge: {
       type: Number,
       enum: [14, 16, 18, 20, 22, 23],
       required: true,
     },
 
+    // Description of the received roll
     description: {
       type: String,
       required: true,
       trim: true,
     },
 
-    // Total weight of the received roll in kg
+    // Total weight of received roll in kg
     weight: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Processing breakdown
-    processing: {
-      g14PR: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      g16PR: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      g18PR: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      g20PR: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      g22PR: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      g23PR: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      golden: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      silver: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-
-      profileChaddar: {
-        type: Number,
-        default: 0,
-        min: 0,
-      },
-    },
-
-    // Original price of the roll
+    // Original price paid for the roll
     rollPrice: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Transportation from Karachi to Peshawar
+    // Transportation cost from Karachi to Peshawar
     karachiPeshawar: {
       type: Number,
       default: 0,
@@ -118,14 +77,14 @@ const rollReceivingSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // Roll price + transportation + freight
+    // Roll Price + Karachi/Peshawar + Freight
     totalCostPerRoll: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Total cost of the roll divided by total weight
+    // Total Roll Cost / Roll Weight
     costPerKg: {
       type: Number,
       required: true,

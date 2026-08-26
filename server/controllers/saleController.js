@@ -1,10 +1,14 @@
+
 const mongoose = require("mongoose");
 const Sale = require("../models/Sale");
 const Customer = require("../models/Customer");
 const Inventory = require("../models/Inventory");
 const CustomerLedger = require("../models/CustomerLedger");
 
-// ADD New Sale
+// ======================================================
+// ADD NEW SALE
+// ======================================================
+
 const addSale = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -16,7 +20,6 @@ const addSale = async (req, res) => {
       customer,
       saleCategory,
       gageNumber,
-      sheetQuantity,
       weight,
       loading,
       mazdory,
@@ -26,12 +29,16 @@ const addSale = async (req, res) => {
     } = req.body;
 
     // --------------------------------------------------
-    // 1. CHECK DUPLICATE RECEIPT
+    // 1. CHECK DUPLICATE RECEIPT NUMBER
     // --------------------------------------------------
-    const existingSale = await Sale.findOne({ receiptNo }).session(session);
+
+    const existingSale = await Sale.findOne({
+      receiptNo,
+    }).session(session);
 
     if (existingSale) {
       await session.abortTransaction();
+
       return res.status(409).json({
         success: false,
         message: "A sale with this receipt number already exists.",
@@ -42,22 +49,27 @@ const addSale = async (req, res) => {
     // --------------------------------------------------
     // 2. VALIDATE TOTAL PAYMENT
     // --------------------------------------------------
+
     if (totalPayment === undefined || Number(totalPayment) <= 0) {
       await session.abortTransaction();
+
       return res.status(400).json({
         success: false,
         message: "Total payment must be greater than 0.",
       });
     }
 
+    const total = Number(totalPayment);
+
     // --------------------------------------------------
     // 3. VALIDATE ADVANCE PAYMENT
     // --------------------------------------------------
+
     const advance = Number(advancePayment || 0);
-    const total = Number(totalPayment);
 
     if (advance < 0) {
       await session.abortTransaction();
+
       return res.status(400).json({
         success: false,
         message: "Advance payment cannot be negative.",
@@ -66,6 +78,7 @@ const addSale = async (req, res) => {
 
     if (advance > total) {
       await session.abortTransaction();
+
       return res.status(400).json({
         success: false,
         message:
@@ -78,10 +91,13 @@ const addSale = async (req, res) => {
     // --------------------------------------------------
     // 4. CHECK CUSTOMER
     // --------------------------------------------------
-    const customerRecord = await Customer.findById(customer).session(session);
+
+    const customerRecord = await Customer.findById(customer)
+      .session(session);
 
     if (!customerRecord) {
       await session.abortTransaction();
+
       return res.status(404).json({
         success: false,
         message: "Customer not found.",
@@ -90,6 +106,7 @@ const addSale = async (req, res) => {
 
     if (customerRecord.status !== "Active") {
       await session.abortTransaction();
+
       return res.status(400).json({
         success: false,
         message: "This customer is inactive.",
@@ -99,6 +116,7 @@ const addSale = async (req, res) => {
     // --------------------------------------------------
     // 5. VALIDATE SALE CATEGORY
     // --------------------------------------------------
+
     const validCategories = [
       "Profile Chaddar",
       "Jastee",
@@ -107,161 +125,173 @@ const addSale = async (req, res) => {
 
     if (!validCategories.includes(saleCategory)) {
       await session.abortTransaction();
+
       return res.status(400).json({
         success: false,
         message: "Invalid sale category.",
+        allowedCategories: validCategories,
       });
     }
 
     // --------------------------------------------------
-    // 6. FIND INVENTORY PRODUCT
+    // 6. VALIDATE GAUGE
     // --------------------------------------------------
-    let inventoryItem = null;
+
+    if (gageNumber === undefined || gageNumber === null) {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message: "Gauge number is required.",
+      });
+    }
+
+    const gauge = Number(gageNumber);
+
+    const allowedGauges = [14, 16, 18, 20, 22, 23];
+
+    if (!allowedGauges.includes(gauge)) {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message: "Invalid gauge number.",
+        allowedGauges,
+      });
+    }
+
+    // --------------------------------------------------
+    // 7. VALIDATE WEIGHT
+    // --------------------------------------------------
+
+    const quantityToDeduct = Number(weight || 0);
+
+    if (quantityToDeduct <= 0) {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message: "Weight must be greater than 0.",
+      });
+    }
+
+    // --------------------------------------------------
+    // 8. DETERMINE INVENTORY CATEGORY
+    //
+    // Jastee -> iron
+    // Steel  -> steel
+    // Profile Chaddar -> profile chaddar
+    // --------------------------------------------------
+
+    let inventoryCategory;
 
     if (saleCategory === "Jastee") {
-      // Jastee is iron
-      inventoryItem = await Inventory.findOne({
-        unit: "kg",
-      })
-        .populate("product")
-        .session(session);
-
-      // Find specifically an iron product with matching gauge
-      if (gageNumber !== undefined) {
-        inventoryItem = await Inventory.findOne({
-          unit: "kg",
-        })
-          .populate({
-            path: "product",
-            match: {
-              category: "iron",
-              gauge: Number(gageNumber),
-              status: "Active",
-            },
-          })
-          .session(session);
-
-        if (inventoryItem && !inventoryItem.product) {
-          inventoryItem = null;
-        }
-      } else {
-        inventoryItem = null;
-      }
+      inventoryCategory = "iron";
+    } else if (saleCategory === "Steel") {
+      inventoryCategory = "steel";
+    } else if (saleCategory === "Profile Chaddar") {
+      inventoryCategory = "profile chaddar";
     }
 
-    if (saleCategory === "Steel") {
-      // Steel inventory
-      if (gageNumber !== undefined) {
-        inventoryItem = await Inventory.findOne({
-          unit: "kg",
-        })
-          .populate({
-            path: "product",
-            match: {
-              category: {
-                $regex: "steel",
-                $options: "i",
-              },
-              gauge: Number(gageNumber),
-              status: "Active",
-            },
-          })
-          .session(session);
+    // --------------------------------------------------
+    // 9. FIND MATCHING INVENTORY
+    // --------------------------------------------------
 
-        if (inventoryItem && !inventoryItem.product) {
-          inventoryItem = null;
-        }
-      }
-    }
+    let inventoryItem;
 
-    if (saleCategory === "Profile Chaddar") {
-      // Profile Chaddar currently requires a registered inventory product.
-      inventoryItem = await Inventory.findOne({
-        unit: {
-          $in: ["sheet", "sheets", "pcs", "piece"],
+    inventoryItem = await Inventory.findOne({
+      unit: "kg",
+    })
+      .populate({
+        path: "product",
+        match: {
+          category:
+            saleCategory === "Steel"
+              ? {
+                  $regex: "^steel$",
+                  $options: "i",
+                }
+              : saleCategory === "Profile Chaddar"
+              ? {
+                  $regex: "profile",
+                  $options: "i",
+                }
+              : "iron",
+
+          gauge: gauge,
+          status: "Active",
         },
       })
-        .populate({
-          path: "product",
-          match: {
-            category: {
-              $regex: "profile",
-              $options: "i",
-            },
-            status: "Active",
-          },
-        })
-        .session(session);
+      .session(session);
 
-      if (inventoryItem && !inventoryItem.product) {
-        inventoryItem = null;
-      }
+    // If populate found an inventory record but product didn't match
+    if (inventoryItem && !inventoryItem.product) {
+      inventoryItem = null;
     }
 
     // --------------------------------------------------
-    // 7. CHECK INVENTORY EXISTS
+    // 10. CHECK INVENTORY EXISTS
     // --------------------------------------------------
+
     if (!inventoryItem) {
       await session.abortTransaction();
 
       return res.status(404).json({
         success: false,
-        message: `No inventory product found for ${saleCategory}${
-          gageNumber ? ` with gauge ${gageNumber}` : ""
-        }. Please register the correct product and inventory first.`,
+        message:
+          "Matching inventory product was not found. Please register the product and inventory for this gauge first.",
+        category: inventoryCategory,
+        gauge,
       });
     }
 
     // --------------------------------------------------
-    // 8. DETERMINE QUANTITY TO DEDUCT
+    // 11. CHECK AVAILABLE STOCK
     // --------------------------------------------------
-    let quantityToDeduct = 0;
 
-    if (saleCategory === "Profile Chaddar") {
-      quantityToDeduct = Number(sheetQuantity || 0);
+    const previousQuantity = Number(
+      inventoryItem.quantity || 0
+    );
 
-      if (quantityToDeduct <= 0) {
-        await session.abortTransaction();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Sheet quantity must be greater than 0 for Profile Chaddar.",
-        });
-      }
-    } else {
-      quantityToDeduct = Number(weight || 0);
-
-      if (quantityToDeduct <= 0) {
-        await session.abortTransaction();
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Weight must be greater than 0 for Steel and Jastee sales.",
-        });
-      }
-    }
-
-    // --------------------------------------------------
-    // 9. CHECK AVAILABLE STOCK
-    // --------------------------------------------------
-    if (inventoryItem.quantity < quantityToDeduct) {
+    if (quantityToDeduct > previousQuantity) {
       await session.abortTransaction();
 
       return res.status(400).json({
         success: false,
         message: "Insufficient inventory stock.",
         product: inventoryItem.product.productName,
-        availableStock: inventoryItem.quantity,
+        availableStock: previousQuantity,
         requestedQuantity: quantityToDeduct,
         unit: inventoryItem.unit,
       });
     }
 
     // --------------------------------------------------
-    // 10. CREATE SALE
+    // 12. CALCULATE NEW INVENTORY QUANTITY
     // --------------------------------------------------
+
+    const newQuantity =
+      previousQuantity - quantityToDeduct;
+
+    // --------------------------------------------------
+    // 13. UPDATE INVENTORY STATUS
+    // --------------------------------------------------
+
+    let inventoryStatus = "Available";
+
+    if (newQuantity <= 0) {
+      inventoryStatus = "Out of Stock";
+    } else if (
+      newQuantity <=
+      Number(inventoryItem.minimumStock || 0)
+    ) {
+      inventoryStatus = "Low Stock";
+    }
+
+    // --------------------------------------------------
+    // 14. CREATE SALE
+    // --------------------------------------------------
+
     const sale = await Sale.create(
       [
         {
@@ -269,9 +299,8 @@ const addSale = async (req, res) => {
           date,
           customer,
           saleCategory,
-          gageNumber,
-          sheetQuantity,
-          weight,
+          gageNumber: gauge,
+          weight: quantityToDeduct,
           loading,
           mazdory,
           loaderRent,
@@ -283,103 +312,105 @@ const addSale = async (req, res) => {
     );
 
     // --------------------------------------------------
-    // 11. DEDUCT INVENTORY
+    // 15. UPDATE INVENTORY
     // --------------------------------------------------
-    const previousQuantity = inventoryItem.quantity;
 
-    inventoryItem.quantity =
-      previousQuantity - quantityToDeduct;
+    inventoryItem.quantity = newQuantity;
+    inventoryItem.status = inventoryStatus;
 
-    // Update inventory status
-    if (inventoryItem.quantity === 0) {
-      inventoryItem.status = "Out of Stock";
-    } else if (
-      inventoryItem.quantity <= inventoryItem.minimumStock
-    ) {
-      inventoryItem.status = "Low Stock";
-    } else {
-      inventoryItem.status = "Available";
-    }
-
-    await inventoryItem.save({ session });
+    await inventoryItem.save({
+      session,
+    });
 
     // --------------------------------------------------
-    // 12. CREATE CUSTOMER SALE LEDGER
+    // 16. CREATE CUSTOMER SALE LEDGER
     // --------------------------------------------------
-    const ledgerEntries = [];
 
-    const saleLedgerEntry = await CustomerLedger.create(
-      [
-        {
-          customer,
-          transactionType: "SALE",
-          amount: total,
-          reference: receiptNo,
-          description: `Sale of ${saleCategory}`,
-          date: date || new Date(),
-        },
-      ],
-      { session }
-    );
-
-    ledgerEntries.push(saleLedgerEntry[0]);
-
-    // --------------------------------------------------
-    // 13. CREATE ADVANCE PAYMENT LEDGER
-    // --------------------------------------------------
-    let advanceLedgerEntry = null;
-
-    if (advance > 0) {
-      const advanceLedger = await CustomerLedger.create(
+    const saleLedgerEntry =
+      await CustomerLedger.create(
         [
           {
             customer,
-            transactionType: "ADVANCE_PAYMENT",
-            amount: advance,
+            transactionType: "SALE",
+            amount: total,
             reference: receiptNo,
-            description: `Advance payment received for ${saleCategory}`,
+            description: `Sale of ${saleCategory}`,
             date: date || new Date(),
           },
         ],
         { session }
       );
 
-      advanceLedgerEntry = advanceLedger[0];
+    // --------------------------------------------------
+    // 17. CREATE ADVANCE PAYMENT LEDGER
+    // --------------------------------------------------
 
-      ledgerEntries.push(advanceLedgerEntry);
+    let advanceLedgerEntry = null;
+
+    if (advance > 0) {
+      const advanceLedger =
+        await CustomerLedger.create(
+          [
+            {
+              customer,
+              transactionType: "ADVANCE_PAYMENT",
+              amount: advance,
+              reference: receiptNo,
+              description:
+                `Advance payment received for ${saleCategory}`,
+              date: date || new Date(),
+            },
+          ],
+          { session }
+        );
+
+      advanceLedgerEntry = advanceLedger[0];
     }
 
     // --------------------------------------------------
-    // 14. COMMIT TRANSACTION
+    // 18. COMMIT TRANSACTION
     // --------------------------------------------------
+
     await session.commitTransaction();
+
+    // --------------------------------------------------
+    // 19. RESPONSE
+    // --------------------------------------------------
 
     res.status(201).json({
       success: true,
       message: "Sale Added Successfully",
+
       sale: sale[0],
 
       inventory: {
         product: inventoryItem.product.productName,
         category: inventoryItem.product.category,
         gauge: inventoryItem.product.gauge,
+
         quantitySold: quantityToDeduct,
         previousQuantity,
-        newQuantity: inventoryItem.quantity,
+        newQuantity,
+
         unit: inventoryItem.unit,
-        status: inventoryItem.status,
+        status: inventoryStatus,
       },
 
       ledgerEntry: saleLedgerEntry[0],
+
       advanceLedgerEntry,
     });
   } catch (error) {
     // --------------------------------------------------
-    // 15. ROLLBACK EVERYTHING IF ANYTHING FAILS
+    // ROLLBACK EVERYTHING IF SOMETHING FAILS
     // --------------------------------------------------
+
     await session.abortTransaction();
 
-    console.error("Sale Transaction Error:", error);
+    console.error(
+      "Sale Transaction Error:",
+      error
+    );
 
     res.status(400).json({
       success: false,
@@ -390,7 +421,10 @@ const addSale = async (req, res) => {
   }
 };
 
-// GET All Sales
+// ======================================================
+// GET ALL SALES
+// ======================================================
+
 const getSales = async (req, res) => {
   try {
     const sales = await Sale.find()
@@ -410,11 +444,15 @@ const getSales = async (req, res) => {
   }
 };
 
-// GET Single Sale
+// ======================================================
+// GET SINGLE SALE
+// ======================================================
+
 const getSaleById = async (req, res) => {
   try {
-    const sale = await Sale.findById(req.params.id)
-      .populate("customer");
+    const sale = await Sale.findById(
+      req.params.id
+    ).populate("customer");
 
     if (!sale) {
       return res.status(404).json({
