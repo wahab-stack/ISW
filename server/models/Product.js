@@ -16,7 +16,7 @@ const productSchema = new mongoose.Schema(
 
     gauge: {
       type: Number,
-      enum: [16, 18, 20, 22, 23],
+      enum: [14, 16, 18, 20, 22, 23],
     },
 
     unit: {
