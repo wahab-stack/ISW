@@ -52,7 +52,6 @@ const saleSchema = new mongoose.Schema(
     // Weight sold in KG
     // ==================================================
     // ISW now works completely by weight.
-    // No sheetQuantity is required.
     weight: {
       type: Number,
       required: true,

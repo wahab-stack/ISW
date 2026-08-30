@@ -2,14 +2,14 @@ const mongoose = require("mongoose");
 
 const inventorySchema = new mongoose.Schema(
   {
-    // Product linked to this inventory
+// Product linked to this inventory
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
       required: true,
     },
 
-    // Current quantity in stock
+// Current quantity in stock
     quantity: {
       type: Number,
       required: true,
@@ -17,33 +17,30 @@ const inventorySchema = new mongoose.Schema(
       default: 0,
     },
 
-    // Unit of measurement
+// Unit of measurement
     unit: {
       type: String,
       required: true,
       trim: true,
     },
 
-    // Minimum quantity before stock becomes Low Stock
+// Minimum quantity before stock becomes Low Stock
     minimumStock: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // --------------------------------------------------
-    // NEW: Weighted average cost per kg
-    // --------------------------------------------------
-
+    
+// NEW: Weighted average cost per kg
     averageCostPerKg: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // --------------------------------------------------
-    // NEW: Total monetary value of current inventory
-    // --------------------------------------------------
+  
+ // NEW: Total monetary value of current inventory
 
     totalStockValue: {
       type: Number,
@@ -51,7 +48,7 @@ const inventorySchema = new mongoose.Schema(
       min: 0,
     },
 
-    // Inventory status
+ // Inventory status
     status: {
       type: String,
       enum: ["Available", "Low Stock", "Out of Stock"],
