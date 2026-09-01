@@ -4,7 +4,6 @@ const express = require("express");
 const connectDB = require("./config/db");
 const loggerMiddleware = require("./middleware/loggerMiddleware");
 const customerRoutes = require("./routes/customerRoutes");
-const productRoutes = require("./routes/productRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
 const rollReceivingRoutes = require("./routes/rollReceivingRoutes");
@@ -17,11 +16,12 @@ connectDB();
 
 const app = express();
 
+
 app.use(loggerMiddleware);
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use("/api/customers", customerRoutes);
-app.use("/api/products", productRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/roll-receiving", rollReceivingRoutes);

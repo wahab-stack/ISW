@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 
 const saleSchema = new mongoose.Schema(
   {
-    // ==================================================
-    // Unique sale receipt number
-    // ==================================================
+    // ======================================================
+    // UNIQUE SALE RECEIPT NUMBER
+    // ======================================================
     receiptNo: {
       type: String,
       required: true,
@@ -12,55 +12,71 @@ const saleSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ==================================================
-    // Sale date
-    // ==================================================
+    // ======================================================
+    // SALE DATE
+    // ======================================================
     date: {
       type: Date,
       default: Date.now,
     },
 
-    // ==================================================
-    // Customer who made the purchase
-    // ==================================================
+    // ======================================================
+    // CUSTOMER
+    // ======================================================
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
       required: true,
     },
 
-    // ==================================================
-    // Type of material being sold
-    // ==================================================
+    // ======================================================
+    // TYPE OF MATERIAL BEING SOLD
+    // ======================================================
     saleCategory: {
       type: String,
-      enum: ["Profile Chaddar", "Jastee", "Steel"],
+      enum: ["Jastee", "Steel"],
       required: true,
     },
 
-    // ==================================================
-    // Gauge / thickness
-    // ==================================================
-    // Used to identify the correct inventory product
+    // ======================================================
+    // GAUGE / THICKNESS
+    // ======================================================
+    // ISW deals with:
+    // 14, 16, 18, 20, 22 and 23 gauge
+    // ======================================================
     gageNumber: {
       type: Number,
       enum: [14, 16, 18, 20, 22, 23],
       required: true,
     },
 
-    // ==================================================
-    // Weight sold in KG
-    // ==================================================
-    // ISW now works completely by weight.
+    // ======================================================
+    // WEIGHT SOLD IN KG
+    // ======================================================
+    // ISW purchases and sells material according to weight.
+    // Example: 50 KG, 100 KG, 250 KG, etc.
+    // ======================================================
     weight: {
       type: Number,
       required: true,
       min: 0.01,
     },
 
-    // ==================================================
-    // Additional sale charges
-    // ==================================================
+    // ======================================================
+    // SELLING PRICE PER KG
+    // ======================================================
+    // Example:
+    // 50 KG × Rs. 290/KG
+    // ======================================================
+    sellingPricePerKg: {
+      type: Number,
+      required: true,
+      min: 0.01,
+    },
+
+    // ======================================================
+    // ADDITIONAL SALE CHARGES
+    // ======================================================
     loading: {
       type: Number,
       default: 0,
@@ -79,25 +95,39 @@ const saleSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ==================================================
-    // Amount paid at the time of sale
-    // ==================================================
+    // ======================================================
+    // ADVANCE PAYMENT
+    // ======================================================
+    // Amount received from customer at the time of sale.
+    // ======================================================
     advancePayment: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // ==================================================
-    // Complete value of the sale
-    // ==================================================
+    // ======================================================
+    // TOTAL SALE AMOUNT
+    // ======================================================
+    // This value should be calculated by saleController.js:
+    //
+    // Weight × Selling Price Per KG
+    // + Additional Charges
+    //
+    // Example:
+    // 50 KG × Rs. 290 = Rs. 14,500
+    // ======================================================
     totalPayment: {
       type: Number,
       required: true,
       min: 0.01,
     },
   },
+
   {
+    // Automatically creates:
+    // createdAt
+    // updatedAt
     timestamps: true,
   }
 );

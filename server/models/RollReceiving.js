@@ -90,6 +90,12 @@ const rollReceivingSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+
+    status: {
+      type: String,
+      enum: ["Active", "Inactive"],
+      default: "Active",
+    },
   },
   {
     timestamps: true,
