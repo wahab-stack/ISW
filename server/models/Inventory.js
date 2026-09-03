@@ -2,53 +2,59 @@ const mongoose = require("mongoose");
 
 const inventorySchema = new mongoose.Schema(
   {
-// Product linked to this inventory
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
+    // Material category
+    category: {
+      type: String,
       required: true,
+      trim: true,
+      enum: ["iron", "steel"],
     },
 
-// Current quantity in stock
-    quantity: {
+    // Gauge / thickness of the material
+    gauge: {
+      type: Number,
+      required: true,
+      enum: [14, 16, 18, 20, 22, 23],
+    },
+
+    // Current quantity/weight available in stock (KG)
+    weight: {
       type: Number,
       required: true,
       min: 0,
       default: 0,
     },
 
-// Unit of measurement
+    // Unit of measurement
     unit: {
       type: String,
       required: true,
       trim: true,
+      default: "kg",
     },
 
-// Minimum quantity before stock becomes Low Stock
+    // Minimum stock level before showing Low Stock
     minimumStock: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    
-// NEW: Weighted average cost per kg
+    // Weighted average purchase cost per KG
     averageCostPerKg: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-  
- // NEW: Total monetary value of current inventory
-
+    // Total monetary value of current inventory
     totalStockValue: {
       type: Number,
       default: 0,
       min: 0,
     },
 
- // Inventory status
+    // Current inventory status
     status: {
       type: String,
       enum: ["Available", "Low Stock", "Out of Stock"],
@@ -60,7 +66,4 @@ const inventorySchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model(
-  "Inventory",
-  inventorySchema
-);
+module.exports = mongoose.model("Inventory", inventorySchema);
