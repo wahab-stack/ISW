@@ -1,6 +1,5 @@
 const RollReceiving = require("../models/RollReceiving");
 const SupplierLedger = require("../models/SupplierLedger");
-// const Product = require("../models/Product");
 const Inventory = require("../models/Inventory");
 
 // ======================================================
@@ -23,11 +22,22 @@ const addRollReceiving = async (req, res) => {
     } = req.body;
 
     // --------------------------------------------------
-    // 1. Check duplicate receipt number
+    // 1. Validate Receipt Number
+    // --------------------------------------------------
+
+    if (!receiptNo) {
+      return res.status(400).json({
+        success: false,
+        message: "Receipt number is required.",
+      });
+    }
+
+    // --------------------------------------------------
+    // 2. Check Duplicate Receipt Number
     // --------------------------------------------------
 
     const existingRoll = await RollReceiving.findOne({
-      receiptNo,
+      receiptNo: receiptNo.trim(),
     });
 
     if (existingRoll) {
@@ -40,7 +50,18 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 2. Validate category
+    // 3. Validate Supplier
+    // --------------------------------------------------
+
+    if (!supplier) {
+      return res.status(400).json({
+        success: false,
+        message: "Supplier is required.",
+      });
+    }
+
+    // --------------------------------------------------
+    // 4. Validate Category
     // --------------------------------------------------
 
     if (!category) {
@@ -61,12 +82,35 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 3. Validate weight
+    // 5. Validate Gauge
     // --------------------------------------------------
 
-    const rollWeight = Number(weight || 0);
+    if (gauge === undefined || gauge === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Gauge is required.",
+      });
+    }
 
-    if (rollWeight <= 0) {
+    const rollGauge = Number(gauge);
+
+    const allowedGauges = [14, 16, 18, 20, 22, 23];
+
+    if (!allowedGauges.includes(rollGauge)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid gauge.",
+        allowedGauges,
+      });
+    }
+
+    // --------------------------------------------------
+    // 6. Validate Weight
+    // --------------------------------------------------
+
+    const rollWeight = Number(weight);
+
+    if (!weight || rollWeight <= 0) {
       return res.status(400).json({
         success: false,
         message: "Roll weight must be greater than 0.",
@@ -74,21 +118,55 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 4. Calculate total roll cost
+    // 7. Validate Roll Price
+    // --------------------------------------------------
+
+    const rollPriceValue = Number(rollPrice || 0);
+
+    if (rollPriceValue < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Roll price cannot be negative.",
+      });
+    }
+
+    // --------------------------------------------------
+    // 8. Validate Transport & Freight
+    // --------------------------------------------------
+
+    const karachiPeshawarValue = Number(karachiPeshawar || 0);
+    const freightChargesValue = Number(freightCharges || 0);
+
+    if (karachiPeshawarValue < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Karachi to Peshawar charges cannot be negative.",
+      });
+    }
+
+    if (freightChargesValue < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Freight charges cannot be negative.",
+      });
+    }
+
+    // --------------------------------------------------
+    // 9. Calculate Total Roll Cost
     //
     // Roll Price
     // + Karachi → Peshawar
-    // + Freight
+    // + Freight Charges
     // = Total Roll Cost
     // --------------------------------------------------
 
     const totalCostPerRoll =
-      Number(rollPrice || 0) +
-      Number(karachiPeshawar || 0) +
-      Number(freightCharges || 0);
+      rollPriceValue +
+      karachiPeshawarValue +
+      freightChargesValue;
 
     // --------------------------------------------------
-    // 5. Calculate cost per kg
+    // 10. Calculate Cost Per KG
     //
     // Total Roll Cost / Roll Weight
     // --------------------------------------------------
@@ -98,62 +176,40 @@ const addRollReceiving = async (req, res) => {
     );
 
     // --------------------------------------------------
-    // 6. Validate gauge
-    // --------------------------------------------------
-
-    if (!gauge) {
-      return res.status(400).json({
-        success: false,
-        message: "Gauge is required.",
-      });
-    }
-
-    // --------------------------------------------------
-    // 7. Find matching product
-    // --------------------------------------------------
-
-    const product = await Product.findOne({
-      category: normalizedCategory,
-      gauge: Number(gauge),
-      status: "Active",
-    });
-
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: "Matching product was not found.",
-        category: normalizedCategory,
-        gauge: Number(gauge),
-      });
-    }
-
-    // --------------------------------------------------
-    // 8. Find inventory for the product
+    // 11. Find Matching Inventory
+    //
+    // NEW SYSTEM:
+    // No Product model is used anymore.
+    //
+    // Inventory is identified by:
+    // category + gauge
     // --------------------------------------------------
 
     const inventory = await Inventory.findOne({
-      product: product._id,
+      category: normalizedCategory,
+      gauge: rollGauge,
     });
 
     if (!inventory) {
       return res.status(404).json({
         success: false,
         message:
-          "Inventory record was not found for this product.",
-        product: product.productName,
-        category: product.category,
-        gauge: product.gauge,
+          "Matching inventory was not found for this category and gauge.",
+        category: normalizedCategory,
+        gauge: rollGauge,
+        suggestion:
+          "Create the inventory record first before receiving this roll.",
       });
     }
 
     // --------------------------------------------------
-    // 9. Check duplicate supplier ledger entry
+    // 12. Check Duplicate Supplier Ledger Entry
     // --------------------------------------------------
 
     const existingLedgerEntry =
       await SupplierLedger.findOne({
         transactionType: "PURCHASE",
-        reference: receiptNo,
+        reference: receiptNo.trim(),
       });
 
     if (existingLedgerEntry) {
@@ -166,12 +222,12 @@ const addRollReceiving = async (req, res) => {
     }
 
     // --------------------------------------------------
-    // 10. Get previous inventory values
+    // 13. Get Previous Inventory Values
+    //
+    // Inventory now uses WEIGHT instead of QUANTITY.
     // --------------------------------------------------
 
-    const previousQuantity = Number(
-      inventory.quantity || 0
-    );
+    const previousWeight = Number(inventory.weight || 0);
 
     const previousStockValue = Number(
       inventory.totalStockValue || 0
@@ -182,14 +238,13 @@ const addRollReceiving = async (req, res) => {
     );
 
     // --------------------------------------------------
-    // 11. Calculate new inventory quantity
+    // 14. Calculate New Inventory Weight
     // --------------------------------------------------
 
-    const newQuantity =
-      previousQuantity + rollWeight;
+    const newWeight = previousWeight + rollWeight;
 
     // --------------------------------------------------
-    // 12. Calculate new stock value
+    // 15. Calculate New Stock Value
     //
     // Previous Stock Value
     // + New Roll Cost
@@ -200,103 +255,102 @@ const addRollReceiving = async (req, res) => {
       previousStockValue + totalCostPerRoll;
 
     // --------------------------------------------------
-    // 13. Calculate weighted average cost per kg
+    // 16. Calculate Weighted Average Cost Per KG
     //
-    // New Stock Value / New Quantity
+    // New Stock Value / New Weight
     // --------------------------------------------------
 
     const newAverageCostPerKg =
-      newQuantity > 0
+      newWeight > 0
         ? Number(
-            (newStockValue / newQuantity).toFixed(2)
+            (newStockValue / newWeight).toFixed(2)
           )
         : 0;
 
     // --------------------------------------------------
-    // 14. Calculate inventory status
+    // 17. Calculate Inventory Status
     // --------------------------------------------------
 
     let inventoryStatus = "Available";
 
-    if (newQuantity <= 0) {
+    if (newWeight <= 0) {
       inventoryStatus = "Out of Stock";
     } else if (
-      newQuantity <=
-      Number(inventory.minimumStock || 0)
+      newWeight <= Number(inventory.minimumStock || 0)
     ) {
       inventoryStatus = "Low Stock";
+    } else {
+      inventoryStatus = "Available";
     }
 
     // --------------------------------------------------
-    // 15. Create Roll Receiving record
+    // 18. Create Roll Receiving Record
     // --------------------------------------------------
 
-    const rollReceiving =
-      await RollReceiving.create({
-        receiptNo,
-        date,
-        supplier,
-        category: normalizedCategory,
-        gauge,
-        description,
-        weight,
-        rollPrice,
-        karachiPeshawar,
-        freightCharges,
-        totalCostPerRoll,
-        costPerKg,
-      });
+    const rollReceiving = await RollReceiving.create({
+      receiptNo: receiptNo.trim(),
+      date: date || new Date(),
+      supplier,
+      category: normalizedCategory,
+      gauge: rollGauge,
+      description: description || "",
+      weight: rollWeight,
+      rollPrice: rollPriceValue,
+      karachiPeshawar: karachiPeshawarValue,
+      freightCharges: freightChargesValue,
+      totalCostPerRoll,
+      costPerKg,
+    });
 
     // --------------------------------------------------
-    // 16. Update inventory
+    // 19. Update Inventory
     // --------------------------------------------------
 
-    inventory.quantity = newQuantity;
+    inventory.weight = newWeight;
 
     inventory.totalStockValue = newStockValue;
 
-    inventory.averageCostPerKg =
-      newAverageCostPerKg;
+    inventory.averageCostPerKg = newAverageCostPerKg;
 
     inventory.status = inventoryStatus;
 
     await inventory.save();
 
     // --------------------------------------------------
-    // 17. Create Supplier Ledger PURCHASE entry
+    // 20. Create Supplier Ledger PURCHASE Entry
     // --------------------------------------------------
 
-    const ledgerEntry =
-      await SupplierLedger.create({
-        supplier,
-        transactionType: "PURCHASE",
-        amount: totalCostPerRoll,
-        reference: receiptNo,
-        description:
-          `Purchase of ${gauge} gauge ${normalizedCategory} roll`,
-        date: date || new Date(),
-      });
+    const ledgerEntry = await SupplierLedger.create({
+      supplier,
+      transactionType: "PURCHASE",
+      amount: totalCostPerRoll,
+      reference: receiptNo.trim(),
+      description:
+        `Purchase of ${rollGauge} gauge ${normalizedCategory} roll`,
+      date: date || new Date(),
+    });
 
     // --------------------------------------------------
-    // 18. Send response
+    // 21. Send Response
     // --------------------------------------------------
 
     res.status(201).json({
       success: true,
+
       message: "Roll Receiving Added Successfully",
 
       rollReceiving,
 
       inventory: {
-        product: product.productName,
-        category: product.category,
-        gauge: product.gauge,
+        category: normalizedCategory,
 
-        quantityReceived: rollWeight,
+        gauge: rollGauge,
 
-        previousQuantity,
+        weightReceived: rollWeight,
 
-        newQuantity,
+        previousWeight,
+
+        newWeight,
 
         unit: inventory.unit,
 
@@ -316,10 +370,7 @@ const addRollReceiving = async (req, res) => {
       ledgerEntry,
     });
   } catch (error) {
-    console.error(
-      "Roll Receiving Error:",
-      error
-    );
+    console.error("Roll Receiving Error:", error);
 
     res.status(400).json({
       success: false,
@@ -334,10 +385,9 @@ const addRollReceiving = async (req, res) => {
 
 const getRollReceivings = async (req, res) => {
   try {
-    const rollReceivings =
-      await RollReceiving.find()
-        .populate("supplier")
-        .sort({ createdAt: -1 });
+    const rollReceivings = await RollReceiving.find()
+      .populate("supplier")
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -345,6 +395,8 @@ const getRollReceivings = async (req, res) => {
       rollReceivings,
     });
   } catch (error) {
+    console.error("Get Roll Receivings Error:", error);
+
     res.status(500).json({
       success: false,
       message: error.message,
@@ -356,21 +408,16 @@ const getRollReceivings = async (req, res) => {
 // GET SINGLE ROLL RECEIVING
 // ======================================================
 
-const getRollReceivingById = async (
-  req,
-  res
-) => {
+const getRollReceivingById = async (req, res) => {
   try {
-    const rollReceiving =
-      await RollReceiving.findById(
-        req.params.id
-      ).populate("supplier");
+    const rollReceiving = await RollReceiving.findById(
+      req.params.id
+    ).populate("supplier");
 
     if (!rollReceiving) {
       return res.status(404).json({
         success: false,
-        message:
-          "Roll Receiving record not found",
+        message: "Roll Receiving record not found.",
       });
     }
 
@@ -379,6 +426,11 @@ const getRollReceivingById = async (
       rollReceiving,
     });
   } catch (error) {
+    console.error(
+      "Get Roll Receiving By ID Error:",
+      error
+    );
+
     res.status(500).json({
       success: false,
       message: error.message,
