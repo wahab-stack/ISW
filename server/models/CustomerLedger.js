@@ -10,7 +10,7 @@ const customerLedgerSchema = new mongoose.Schema(
 
     transactionType: {
       type: String,
-      enum: ["SALE", "PAYMENT", "ADVANCE_PAYMENT"],
+      enum: ["Credit", "Debit"],
       required: true,
     },
 
