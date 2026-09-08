@@ -2,7 +2,10 @@ const mongoose = require("mongoose");
 
 const rollReceivingSchema = new mongoose.Schema(
   {
-    // Receipt number
+    // ======================================================
+    // Receipt Number
+    // ======================================================
+
     receiptNo: {
       type: String,
       required: true,
@@ -10,23 +13,30 @@ const rollReceivingSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Date of receiving
+    // ======================================================
+    // Date of Receiving
+    // ======================================================
+
     date: {
       type: Date,
       required: true,
       default: Date.now,
     },
 
+    // ======================================================
     // Supplier
+    // ======================================================
+
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Supplier",
       required: true,
     },
 
-    // Material category
-    // iron = Jastee / iron material
-    // steel = steel material
+    // ======================================================
+    // Material Category
+    // ======================================================
+
     category: {
       type: String,
       required: true,
@@ -35,61 +45,95 @@ const rollReceivingSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // ======================================================
     // Gauge
+    // ======================================================
+
     gauge: {
       type: Number,
       enum: [14, 16, 18, 20, 22, 23],
       required: true,
     },
 
-    // Description of the received roll
+    // ======================================================
+    // Description
+    // ======================================================
+
     description: {
       type: String,
       required: true,
       trim: true,
     },
 
-    // Total weight of received roll in kg
+    // ======================================================
+    // Weight in KG
+    // ======================================================
+
     weight: {
       type: Number,
       required: true,
-      min: 0,
+      min: 0.01,
     },
 
-    // Original price paid for the roll
+    // ======================================================
+    // Original Roll Price
+    // ======================================================
+
     rollPrice: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Transportation cost from Karachi to Peshawar
+    // ======================================================
+    // Karachi → Peshawar Transportation
+    // ======================================================
+
     karachiPeshawar: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // Other freight charges
+    // ======================================================
+    // Other Freight Charges
+    // ======================================================
+
     freightCharges: {
       type: Number,
       default: 0,
       min: 0,
     },
 
-    // Roll Price + Karachi/Peshawar + Freight
+    // ======================================================
+    // Total Cost of Roll
+    //
+    // rollPrice
+    // + karachiPeshawar
+    // + freightCharges
+    // ======================================================
+
     totalCostPerRoll: {
       type: Number,
       required: true,
       min: 0,
     },
 
-    // Total Roll Cost / Roll Weight
+    // ======================================================
+    // Cost Per KG
+    //
+    // totalCostPerRoll / weight
+    // ======================================================
+
     costPerKg: {
       type: Number,
       required: true,
       min: 0,
     },
+
+    // ======================================================
+    // Receiving Status
+    // ======================================================
 
     status: {
       type: String,
