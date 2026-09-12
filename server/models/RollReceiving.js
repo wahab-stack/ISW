@@ -90,7 +90,6 @@ const rollReceivingSchema = new mongoose.Schema(
     },
 
     // Total Cost of Roll
-    //
     // rollPrice
     // + karachiPeshawar
     // + freightCharges
